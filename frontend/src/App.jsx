@@ -11,6 +11,9 @@ export default function App() {
   const [cameraOpen, setCameraOpen] = useState(false)
   const videoRef = useRef(null)
   const streamRef = useRef(null)
+  const [attachments, setAttachments] = useState([])
+  const [attachError, setAttachError] = useState('')
+  const MAX_ATTACH = 10
 
   useEffect(() => {
     // cleanup on unmount
@@ -54,8 +57,47 @@ export default function App() {
     const ctx = canvas.getContext('2d')
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
     const dataUrl = canvas.toDataURL('image/jpeg', 0.92)
-    // TODO: send dataUrl to backend or store in messages
+    // queue the captured image if under limit
+    setAttachments(prev => {
+      if (prev.length >= MAX_ATTACH) {
+        setAttachError(`You can attach up to ${MAX_ATTACH} images.`)
+        return prev
+      }
+      setAttachError('')
+      return [...prev, { id: Date.now() + Math.random(), url: dataUrl, kind: 'dataurl' }]
+    })
     closeCamera()
+  }
+
+  function addFilesFromInput(fileList) {
+    const files = Array.from(fileList || [])
+    if (!files.length) return
+    setAttachments(prev => {
+      const remaining = MAX_ATTACH - prev.length
+      if (remaining <= 0) {
+        setAttachError(`You can attach up to ${MAX_ATTACH} images.`)
+        return prev
+      }
+      const allowed = files.slice(0, remaining)
+      const newItems = allowed.map(f => ({ id: Date.now() + Math.random(), url: URL.createObjectURL(f), kind: 'blob' }))
+      if (files.length > remaining) {
+        setAttachError(`Only ${remaining} more image${remaining === 1 ? '' : 's'} allowed (max ${MAX_ATTACH}).`)
+      } else {
+        setAttachError('')
+      }
+      return [...prev, ...newItems]
+    })
+  }
+
+  function onRemoveAttachment(id) {
+    setAttachments(prev => {
+      const item = prev.find(a => a.id === id)
+      if (item && item.kind === 'blob') {
+        URL.revokeObjectURL(item.url)
+      }
+      return prev.filter(a => a.id !== id)
+    })
+    setAttachError('')
   }
 
   function handleSend(e) {
@@ -177,6 +219,19 @@ export default function App() {
               </div>
             ))}
           </div>
+          {attachments.length > 0 && (
+            <div className="attachments">
+              {attachments.map(att => (
+                <div key={att.id} className="attachment">
+                  <img src={att.url} alt="Selected" />
+                  <button className="remove" type="button" aria-label="Remove" title="Remove" onClick={() => onRemoveAttachment(att.id)}>✕</button>
+                </div>
+              ))}
+            </div>
+          )}
+          {attachError && (
+            <div className="attachError" role="status" aria-live="polite">{attachError}</div>
+          )}
           <form className="composer" onSubmit={handleSend}>
             <button
               className="attachPrimary"
@@ -223,7 +278,7 @@ export default function App() {
               type="file"
               accept="image/*"
               style={{ display: 'none' }}
-              onChange={() => { /* TODO: wire to upload later */ }}
+              onChange={(e) => { addFilesFromInput(e.target.files); e.target.value = '' }}
             />
             <input
               value={input}
@@ -242,10 +297,10 @@ export default function App() {
                 </div>
                 <div className="dropZone"
                   onDragOver={(e) => { e.preventDefault() }}
-                  onDrop={(e) => { e.preventDefault() /* TODO: handle files later */ }}
+                  onDrop={(e) => { e.preventDefault(); addFilesFromInput(e.dataTransfer.files); setDeviceOpen(false) }}
                 >
                   Drag & drop images here, or click to browse
-                  <input type="file" accept="image/*" multiple onChange={() => { /* TODO: wire later */ }} />
+                  <input type="file" accept="image/*" multiple onChange={(e) => { addFilesFromInput(e.target.files); setDeviceOpen(false); e.target.value=''}} />
                 </div>
               </div>
             </div>
