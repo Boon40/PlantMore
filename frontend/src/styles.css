@@ -9,6 +9,8 @@
   --assistant-border: #dbe7df;
   --user: #d6f0dc; /* pale green */
   --user-border: #b8e3c3;
+  --nav-bg: #1f5f26; /* darker green for contrast */
+  --nav-text: #ffffff;
 }
 
 * { box-sizing: border-box; }
@@ -25,12 +27,13 @@ body {
 .page { min-height: 100svh; display: grid; grid-template-rows: auto 1fr; }
 .header {
   padding: 18px 20px;
-  border-bottom: 1px solid var(--assistant-border);
-  background: linear-gradient(180deg, var(--bg-accent), transparent 60%);
+  border-bottom: 1px solid color-mix(in oklab, var(--nav-bg) 60%, #0000);
+  background: var(--nav-bg);
+  color: var(--nav-text);
 }
-.header h1 { margin: 0; font-size: 20px; display: flex; align-items: center; gap: 10px; }
-.header .sub { margin: 4px 0 0; font-size: 13px; color: var(--muted); }
-.leaf { width: 28px; height: 28px; display: grid; place-items: center; border-radius: 8px; background: #e2f4e6; color: var(--primary); }
+.header h1 { margin: 0; font-size: 20px; display: flex; align-items: center; gap: 10px; color: var(--nav-text); }
+.header .sub { margin: 4px 0 0; font-size: 13px; color: color-mix(in oklab, var(--nav-text) 70%, #0000); }
+.leaf { width: 28px; height: 28px; display: grid; place-items: center; border-radius: 8px; background: rgba(255,255,255,0.2); color: #fff; }
 
 .layout {
   max-width: none;
@@ -51,7 +54,7 @@ body {
   display: grid;
   grid-template-rows: auto 1fr;
 }
-.sidebar-header { padding: 14px 16px; font-weight: 700; border-bottom: 1px solid var(--assistant-border); display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.sidebar-header { padding: 14px 16px; font-weight: 700; border-bottom: 1px solid color-mix(in oklab, var(--nav-bg) 60%, #0000); display: flex; align-items: center; justify-content: space-between; gap: 8px; background: var(--nav-bg); color: var(--nav-text); }
 .chat-list { list-style: none; padding: 8px; margin: 0; display: grid; gap: 6px; align-content: start; }
 .chat-item { position: relative; display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: center; padding: 10px 10px; border-radius: 10px; color: var(--text); cursor: pointer; min-height: 56px; }
 .chat-item:hover { background: var(--bg-accent); }
