@@ -276,60 +276,68 @@ export default function App() {
             <div className="attachError" role="status" aria-live="polite">{attachError}</div>
           )}
           <form className="composer" onSubmit={handleSend}>
-            <button
-              className="attachPrimary"
-              type="button"
-              aria-label="Attach image"
-              title="Attach image"
-              onClick={() => setAttachOpen(v => !v)}
-            >
-              +
-            </button>
-            {attachOpen && (
-              <div className="attachMenu" role="menu" aria-label="Attach options">
+            {(() => { const hasContent = Boolean(input.trim()) || attachments.length > 0; return (
+              <div className={`inputWrap ${hasContent ? 'hasContent' : ''}`}>
                 <button
-                  className="item"
+                  className="attachInside"
                   type="button"
-                  onClick={() => {
-                    setAttachOpen(false)
-                    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-                      openCamera()
-                    } else {
-                      cameraInputRef.current?.click()
-                    }
-                  }}
+                  aria-label="Attach image"
+                  title="Attach image"
+                  onClick={() => setAttachOpen(v => !v)}
                 >
-                  <span className="itemIcon">📷</span>
-                  Camera
+                  +
                 </button>
-                <button
-                  className="item"
-                  type="button"
-                  onClick={() => {
-                    setAttachOpen(false)
-                    setDeviceOpen(true)
-                  }}
-                >
-                  <span className="itemIcon">💾</span>
-                  Device
+                {attachOpen && (
+                  <div className="attachMenu" role="menu" aria-label="Attach options">
+                    <button
+                      className="item"
+                      type="button"
+                      onClick={() => {
+                        setAttachOpen(false)
+                        if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+                          openCamera()
+                        } else {
+                          cameraInputRef.current?.click()
+                        }
+                      }}
+                    >
+                      <span className="itemIcon">📷</span>
+                      Camera
+                    </button>
+                    <button
+                      className="item"
+                      type="button"
+                      onClick={() => {
+                        setAttachOpen(false)
+                        setDeviceOpen(true)
+                      }}
+                    >
+                      <span className="itemIcon">💾</span>
+                      Device
+                    </button>
+                  </div>
+                )}
+                {/* hidden input fallback */}
+                <input
+                  ref={cameraInputRef}
+                  type="file"
+                  accept="image/*"
+                  style={{ display: 'none' }}
+                  onChange={(e) => { addFilesFromInput(e.target.files); e.target.value = '' }}
+                />
+                <input
+                  value={input}
+                  onChange={e => setInput(e.target.value)}
+                  placeholder="Type your message..."
+                  aria-label="Message"
+                />
+                <button className="sendInside" type="submit" aria-label="Send">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M12 19V5M12 5l-5 5M12 5l5 5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
                 </button>
               </div>
-            )}
-            {/* hidden input fallback */}
-            <input
-              ref={cameraInputRef}
-              type="file"
-              accept="image/*"
-              style={{ display: 'none' }}
-              onChange={(e) => { addFilesFromInput(e.target.files); e.target.value = '' }}
-            />
-            <input
-              value={input}
-              onChange={e => setInput(e.target.value)}
-              placeholder="Type your message..."
-              aria-label="Message"
-            />
-            <button type="submit">Send</button>
+            )})()}
           </form>
           {deviceOpen && (
             <div className="modalOverlay" role="dialog" aria-modal="true" aria-label="Select images" onClick={(e) => { if (e.target === e.currentTarget) setDeviceOpen(false) }}>

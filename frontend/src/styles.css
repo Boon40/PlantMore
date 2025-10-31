@@ -44,7 +44,7 @@ body {
   display: grid;
   grid-template-columns: 30% 70%;
   gap: 16px;
-  padding: 16px 16px 16px 0; /* flush left */
+  padding: 16px 40px 16px 0; /* larger side paddings */
 }
 
 .sidebar {
@@ -122,34 +122,37 @@ body {
 }
 
 .composer {
-  display: grid; grid-template-columns: auto 1fr auto; gap: 10px; padding: 12px 16px; align-items: center;
-  border-top: 1px solid var(--assistant-border); background: linear-gradient(180deg, transparent, rgba(255,255,255,0.6));
-  position: relative;
+  padding: 12px 16px; border-top: 1px solid var(--assistant-border);
+  background: linear-gradient(180deg, transparent, rgba(255,255,255,0.6));
 }
-.composer input {
-  width: 100%; height: 44px; padding: 0 16px; border-radius: 12px; border: 1px solid var(--assistant-border);
+.inputWrap { position: relative; }
+.inputWrap input[aria-label="Message"] {
+  width: 100%; height: 52px; padding: 0 60px 0 60px; border-radius: 14px; border: 1px solid var(--assistant-border);
   background: #fff; color: var(--text); outline: none;
 }
-.composer input:focus { border-color: var(--user-border); box-shadow: 0 0 0 3px rgba(46,125,50,0.12); }
-.composer button {
-  padding: 12px 16px; border-radius: 12px; border: 1px solid var(--primary);
-  background: var(--primary); color: #fff; cursor: pointer; font-weight: 600;
+.inputWrap input[aria-label="Message"]:focus { border-color: var(--user-border); box-shadow: 0 0 0 3px rgba(46,125,50,0.12); }
+.attachInside {
+  position: absolute; left: 10px; top: 50%; transform: translateY(-50%);
+  width: 40px; height: 40px; border-radius: 10px; border: 1px solid var(--primary);
+  background: var(--primary); color: #fff; font-weight: 700; font-size: 22px; line-height: 1;
+  display: inline-flex; align-items: center; justify-content: center; cursor: pointer;
 }
+.attachInside:hover { background: var(--primary-600); border-color: var(--primary-600); }
+.sendInside {
+  position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
+  width: 40px; height: 40px; padding: 0; border-radius: 10px; border: 1px solid var(--primary);
+  background: var(--primary); color: #fff; font-weight: 600; cursor: pointer;
+  opacity: 0; pointer-events: none; transition: opacity .15s ease;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.inputWrap.hasContent .sendInside { opacity: 1; pointer-events: auto; }
 .composer button:hover { background: var(--primary-600); }
 
 /* Attach button inherits iconSquare styles; green hover like new chat */
 .composer .attachBtn:hover { background: #d1fae5; border-color: #10b981; box-shadow: 0 0 0 3px rgba(16,185,129,0.18); }
 
 /* Square attach button styled like Send but 36x36 */
-.attachPrimary {
-  width: 44px; height: 44px; border-radius: 10px;
-  border: 1px solid var(--primary);
-  background: var(--primary);
-  color: #fff; font-weight: 700; font-size: 22px; line-height: 1;
-  padding: 0;
-  display: inline-flex; align-items: center; justify-content: center;
-}
-.attachPrimary:hover { background: var(--primary-600); border-color: var(--primary-600); }
+/* old attachPrimary removed in favor of attachInside */
 /* Attach dropdown */
 .attachMenu {
   position: absolute;
