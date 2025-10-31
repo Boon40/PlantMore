@@ -12,6 +12,12 @@ export default function App() {
   const videoRef = useRef(null)
   const streamRef = useRef(null)
   const [attachments, setAttachments] = useState([])
+  const messagesRef = useRef(null)
+  useEffect(() => {
+    if (messagesRef.current) {
+      messagesRef.current.scrollTop = messagesRef.current.scrollHeight
+    }
+  }, [messages])
   const [attachError, setAttachError] = useState('')
   const MAX_ATTACH = 10
   const [lightboxOpen, setLightboxOpen] = useState(false)
@@ -227,7 +233,7 @@ export default function App() {
         </aside>
 
         <section className="chatPanel" aria-label="Chat">
-          <div className="messages">
+          <div className="messages" ref={messagesRef}>
             {messages.map(m => {
               const count = m.attachments?.length || 0
               const firstFour = count > 4 ? m.attachments.slice(0, 4) : m.attachments
