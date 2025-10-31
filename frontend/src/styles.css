@@ -65,44 +65,13 @@ body {
 .chat-actions { display: inline-flex; gap: 6px; align-items: center; visibility: hidden; opacity: 0; pointer-events: none; transition: opacity .15s ease; }
 .chat-item:hover .chat-actions { visibility: visible; opacity: 1; pointer-events: auto; }
 .iconSquare { width: 36px; height: 36px; border: 1px solid var(--assistant-border); border-radius: 8px; background: var(--assistant); display: grid; place-items: center; color: #111; }
-.iconSquare svg { display: block; }
+.iconSquare svg { display: block; width: 20px; height: 20px; }
 .iconSquare.star:hover { background: #fde68a; /* yellow-200 */ border-color: #f59e0b; }
 .iconSquare.trash:hover { background: #fecaca; /* red-200 */ border-color: #ef4444; }
 .iconSquare.edit:hover { background: #e5e7eb; /* gray-200 */ border-color: #9ca3af; }
 .iconSquare.plus:hover { background: #d1fae5; border-color: #10b981; box-shadow: 0 0 0 3px rgba(16,185,129,0.18); }
 
-/* Simple tooltip for icon buttons */
-.iconSquare { position: relative; z-index: 0; }
-.iconSquare[data-tip]::after {
-  content: attr(data-tip);
-  position: absolute;
-  white-space: nowrap;
-  bottom: calc(100% + 8px);
-  left: 50%;
-  transform: translateX(-50%);
-  padding: 4px 8px;
-  font-size: 12px;
-  color: var(--text);
-  background: var(--assistant);
-  border: 1px solid var(--assistant-border);
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-  opacity: 0;
-  visibility: hidden;
-  pointer-events: none;
-  transition: opacity .15s ease;
-  z-index: 50;
-}
-.iconSquare:hover::after { opacity: 1; visibility: visible; }
-
-/* Place the plus button tooltip to the left to avoid overlapping navbar */
-.sidebar-header .plus[data-tip]::after {
-  bottom: auto;
-  left: auto;
-  right: calc(100% + 8px);
-  top: 50%;
-  transform: translateY(-50%);
-}
+/* Tooltips: rely on native title tooltips only */
 
 .chatPanel {
   background: var(--assistant);
@@ -132,11 +101,11 @@ body {
 }
 
 .composer {
-  display: grid; grid-template-columns: 1fr auto; gap: 10px; padding: 12px 16px;
+  display: grid; grid-template-columns: auto 1fr auto; gap: 10px; padding: 12px 16px; align-items: center;
   border-top: 1px solid var(--assistant-border); background: linear-gradient(180deg, transparent, rgba(255,255,255,0.6));
 }
 .composer input {
-  width: 100%; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--assistant-border);
+  width: 100%; height: 44px; padding: 0 16px; border-radius: 12px; border: 1px solid var(--assistant-border);
   background: #fff; color: var(--text); outline: none;
 }
 .composer input:focus { border-color: var(--user-border); box-shadow: 0 0 0 3px rgba(46,125,50,0.12); }
@@ -145,6 +114,40 @@ body {
   background: var(--primary); color: #fff; cursor: pointer; font-weight: 600;
 }
 .composer button:hover { background: var(--primary-600); }
+
+/* Attach button inherits iconSquare styles; green hover like new chat */
+.composer .attachBtn:hover { background: #d1fae5; border-color: #10b981; box-shadow: 0 0 0 3px rgba(16,185,129,0.18); }
+
+/* Square attach button styled like Send but 36x36 */
+.attachPrimary {
+  width: 44px; height: 44px; border-radius: 10px;
+  border: 1px solid var(--primary);
+  background: var(--primary);
+  color: #fff; font-weight: 700; font-size: 22px; line-height: 1;
+  padding: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.attachPrimary:hover { background: var(--primary-600); border-color: var(--primary-600); }
+
+/* Tooltip support for attachPrimary */
+.attachPrimary { position: relative; z-index: 0; }
+.attachPrimary[data-tip]::after {
+  content: attr(data-tip);
+  position: absolute;
+  white-space: nowrap;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 4px 8px;
+  font-size: 12px;
+  color: var(--text);
+  background: var(--assistant);
+  border: 1px solid var(--assistant-border);
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  opacity: 0; visibility: hidden; pointer-events: none; transition: opacity .15s ease; z-index: 50;
+}
+.attachPrimary:hover::after { opacity: 1; visibility: visible; }
 
 @media (max-width: 640px) {
   .layout { grid-template-columns: 1fr; padding: 10px; gap: 10px; }
