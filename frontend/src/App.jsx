@@ -14,6 +14,18 @@ export default function App() {
   const [attachments, setAttachments] = useState([])
   const [attachError, setAttachError] = useState('')
   const MAX_ATTACH = 10
+  const [lightboxOpen, setLightboxOpen] = useState(false)
+  const [lightboxImages, setLightboxImages] = useState([])
+  const [lightboxIndex, setLightboxIndex] = useState(0)
+
+  function openLightbox(images, index) {
+    setLightboxImages(images)
+    setLightboxIndex(index)
+    setLightboxOpen(true)
+  }
+  function closeLightbox() { setLightboxOpen(false) }
+  function prevLightbox() { setLightboxIndex(i => Math.max(0, i - 1)) }
+  function nextLightbox() { setLightboxIndex(i => Math.min(lightboxImages.length - 1, i + 1)) }
 
   useEffect(() => {
     // cleanup on unmount
@@ -103,17 +115,20 @@ export default function App() {
   function handleSend(e) {
     e.preventDefault()
     const trimmed = input.trim()
-    if (!trimmed) return
+    if (!trimmed && attachments.length === 0) return
 
-    const userMsg = { id: Date.now(), role: 'user', content: trimmed }
+    const userMsg = { id: Date.now(), role: 'user', content: trimmed, attachments }
     setMessages(prev => [...prev, userMsg])
     setInput('')
+    // clear queued attachments (keep URLs alive for message rendering)
+    setAttachments([])
+    setAttachError('')
 
     // Placeholder echo until backend is wired
     const reply = {
       id: Date.now() + 1,
       role: 'assistant',
-      content: `You said: "${trimmed}" (model coming soon)`
+      content: `You said: "${trimmed || '(no text)'}" (model coming soon)`
     }
     setTimeout(() => setMessages(prev => [...prev, reply]), 400)
   }
@@ -213,11 +228,33 @@ export default function App() {
 
         <section className="chatPanel" aria-label="Chat">
           <div className="messages">
-            {messages.map(m => (
-              <div key={m.id} className={`message ${m.role}`}>
-                <div className="bubble">{m.content}</div>
-              </div>
-            ))}
+            {messages.map(m => {
+              const count = m.attachments?.length || 0
+              const firstFour = count > 4 ? m.attachments.slice(0, 4) : m.attachments
+              const extra = count > 4 ? count - 4 : 0
+              return (
+                <div key={m.id} className={`message ${m.role}`}>
+                  {count > 0 && (
+                    <div className={`msgAttachments c${Math.min(count,4)}`}>
+                      {firstFour.map((att, idx) => (
+                        <div key={att.id} className="tile">
+                          <img
+                            src={att.url}
+                            alt="Attachment"
+                            onClick={() => openLightbox(m.attachments, idx)}
+                            role="button"
+                          />
+                          {extra > 0 && idx === firstFour.length - 1 && (
+                            <div className="moreOverlay">+{extra}</div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {m.content && <div className="bubble">{m.content}</div>}
+                </div>
+              )
+            })}
           </div>
           {attachments.length > 0 && (
             <div className="attachments">
@@ -319,6 +356,21 @@ export default function App() {
                 <div className="cameraActions">
                   <button className="captureBtn" type="button" onClick={capturePhoto}>Capture</button>
                 </div>
+              </div>
+            </div>
+          )}
+
+          {lightboxOpen && lightboxImages.length > 0 && (
+            <div className="modalOverlay" role="dialog" aria-modal="true" aria-label="Image preview" onClick={(e)=>{ if (e.target === e.currentTarget) closeLightbox() }}>
+              <div className="lightbox">
+                <button className="closeBtn" type="button" aria-label="Close" onClick={closeLightbox}>✕</button>
+                {lightboxIndex > 0 && (
+                  <button className="navBtn left" type="button" aria-label="Previous image" onClick={prevLightbox}>❮</button>
+                )}
+                <img src={lightboxImages[lightboxIndex]?.url} alt="Preview" />
+                {lightboxIndex < lightboxImages.length - 1 && (
+                  <button className="navBtn right" type="button" aria-label="Next image" onClick={nextLightbox}>❯</button>
+                )}
               </div>
             </div>
           )}
