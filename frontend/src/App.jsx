@@ -1,10 +1,62 @@
-import React, { useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 
 export default function App() {
   const [messages, setMessages] = useState([
     { id: 1, role: 'assistant', content: 'Hi! Ask me anything about plants 🌱' }
   ])
   const [input, setInput] = useState('')
+  const [attachOpen, setAttachOpen] = useState(false)
+  const [deviceOpen, setDeviceOpen] = useState(false)
+  const cameraInputRef = useRef(null)
+  const [cameraOpen, setCameraOpen] = useState(false)
+  const videoRef = useRef(null)
+  const streamRef = useRef(null)
+
+  useEffect(() => {
+    // cleanup on unmount
+    return () => {
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(t => t.stop())
+      }
+    }
+  }, [])
+
+  async function openCamera() {
+    try {
+      const constraints = { video: { facingMode: 'environment' }, audio: false }
+      const stream = await navigator.mediaDevices.getUserMedia(constraints)
+      streamRef.current = stream
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream
+        await videoRef.current.play()
+      }
+      setCameraOpen(true)
+    } catch (err) {
+      // Fallback to file input if camera not available/denied
+      cameraInputRef.current?.click()
+    }
+  }
+
+  function closeCamera() {
+    setCameraOpen(false)
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(t => t.stop())
+      streamRef.current = null
+    }
+  }
+
+  function capturePhoto() {
+    const video = videoRef.current
+    if (!video) return
+    const canvas = document.createElement('canvas')
+    canvas.width = video.videoWidth
+    canvas.height = video.videoHeight
+    const ctx = canvas.getContext('2d')
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.92)
+    // TODO: send dataUrl to backend or store in messages
+    closeCamera()
+  }
 
   function handleSend(e) {
     e.preventDefault()
@@ -131,9 +183,48 @@ export default function App() {
               type="button"
               aria-label="Attach image"
               title="Attach image"
+              onClick={() => setAttachOpen(v => !v)}
             >
               +
             </button>
+            {attachOpen && (
+              <div className="attachMenu" role="menu" aria-label="Attach options">
+                <button
+                  className="item"
+                  type="button"
+                  onClick={() => {
+                    setAttachOpen(false)
+                    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+                      openCamera()
+                    } else {
+                      cameraInputRef.current?.click()
+                    }
+                  }}
+                >
+                  <span className="itemIcon">📷</span>
+                  Camera
+                </button>
+                <button
+                  className="item"
+                  type="button"
+                  onClick={() => {
+                    setAttachOpen(false)
+                    setDeviceOpen(true)
+                  }}
+                >
+                  <span className="itemIcon">💾</span>
+                  Device
+                </button>
+              </div>
+            )}
+            {/* hidden input fallback */}
+            <input
+              ref={cameraInputRef}
+              type="file"
+              accept="image/*"
+              style={{ display: 'none' }}
+              onChange={() => { /* TODO: wire to upload later */ }}
+            />
             <input
               value={input}
               onChange={e => setInput(e.target.value)}
@@ -142,6 +233,40 @@ export default function App() {
             />
             <button type="submit">Send</button>
           </form>
+          {deviceOpen && (
+            <div className="modalOverlay" role="dialog" aria-modal="true" aria-label="Select images" onClick={(e) => { if (e.target === e.currentTarget) setDeviceOpen(false) }}>
+              <div className="deviceModal">
+                <div className="modalHeader">
+                  <h2>Select images</h2>
+                  <button className="closeBtn" type="button" aria-label="Close" onClick={() => setDeviceOpen(false)}>✕</button>
+                </div>
+                <div className="dropZone"
+                  onDragOver={(e) => { e.preventDefault() }}
+                  onDrop={(e) => { e.preventDefault() /* TODO: handle files later */ }}
+                >
+                  Drag & drop images here, or click to browse
+                  <input type="file" accept="image/*" multiple onChange={() => { /* TODO: wire later */ }} />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {cameraOpen && (
+            <div className="modalOverlay" role="dialog" aria-modal="true" aria-label="Camera" onClick={(e) => { if (e.target === e.currentTarget) closeCamera() }}>
+              <div className="cameraModal">
+                <div className="modalHeader">
+                  <h2>Take a photo</h2>
+                  <button className="closeBtn" type="button" aria-label="Close" onClick={closeCamera}>✕</button>
+                </div>
+                <div className="cameraBody">
+                  <video ref={videoRef} playsInline muted />
+                </div>
+                <div className="cameraActions">
+                  <button className="captureBtn" type="button" onClick={capturePhoto}>Capture</button>
+                </div>
+              </div>
+            </div>
+          )}
         </section>
       </main>
     </div>
