@@ -1,10 +1,70 @@
 import React, { useEffect, useRef, useState } from 'react'
 
 export default function App() {
-  const [messages, setMessages] = useState([
-    { id: 1, role: 'assistant', content: 'Hi! Ask me anything about plants 🌱' }
-  ])
+  const [messages, setMessages] = useState([])
   const [input, setInput] = useState('')
+  const API_BASE = 'http://localhost:3001/api'
+  const [chats, setChats] = useState([])
+  const [activeChatId, setActiveChatId] = useState(null)
+  const [editingChatId, setEditingChatId] = useState(null)
+  const [editingTitle, setEditingTitle] = useState('')
+
+  async function loadChats() {
+    const res = await fetch(`${API_BASE}/chat`)
+    if (!res.ok) return
+    const data = await res.json()
+    // Ensure favourites first also on client
+    const sorted = [...data].sort((a, b) => Number(b.is_favourite) - Number(a.is_favourite) || b.id - a.id)
+    setChats(sorted)
+    if (data.length && !activeChatId) setActiveChatId(data[0].id)
+  }
+
+  useEffect(() => { loadChats() }, [])
+
+  async function createChatApi() {
+    const res = await fetch(`${API_BASE}/chat`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: 'New chat' }) })
+    if (res.ok) {
+      const chat = await res.json()
+      await loadChats()
+      setActiveChatId(chat.id)
+    }
+  }
+
+  async function toggleFavouriteApi(chat) {
+    const method = chat.is_favourite ? 'DELETE' : 'POST'
+    const res = await fetch(`${API_BASE}/chat/${chat.id}/favorite`, { method })
+    if (res.ok) loadChats()
+  }
+
+  async function deleteChatApi(chatId) {
+    const res = await fetch(`${API_BASE}/chat/${chatId}`, { method: 'DELETE' })
+    if (res.ok) {
+      await loadChats()
+      if (activeChatId === chatId) setActiveChatId(prev => {
+        const remaining = chats.filter(c => c.id !== chatId)
+        return remaining[0]?.id ?? null
+      })
+    }
+  }
+
+  function confirmDelete(chat) {
+    const ok = window.confirm(`Delete chat "${chat.title}"? This will also remove all its messages and images.`)
+    if (!ok) return
+    deleteChatApi(chat.id)
+  }
+
+  async function renameChatApi(chat) {
+    setEditingChatId(chat.id)
+    setEditingTitle(chat.title)
+  }
+
+  async function commitRename(chatId, title) {
+    const trimmed = (title || '').trim()
+    setEditingChatId(null)
+    if (!trimmed) return
+    const res = await fetch(`${API_BASE}/chat/${chatId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: trimmed }) })
+    if (res.ok) loadChats()
+  }
   const [attachOpen, setAttachOpen] = useState(false)
   const [deviceOpen, setDeviceOpen] = useState(false)
   const cameraInputRef = useRef(null)
@@ -131,11 +191,7 @@ export default function App() {
     setAttachError('')
 
     // Placeholder echo until backend is wired
-    const reply = {
-      id: Date.now() + 1,
-      role: 'assistant',
-      content: `You said: "${trimmed || '(no text)'}" (model coming soon)`
-    }
+    const reply = null
     setTimeout(() => setMessages(prev => [...prev, reply]), 400)
   }
 
@@ -152,7 +208,7 @@ export default function App() {
         <aside className="sidebar" aria-label="Conversations">
           <div className="sidebar-header">
             <span>Chats</span>
-            <button className="iconSquare plus" type="button" aria-label="Start new chat" title="Start new chat">
+            <button className="iconSquare plus" type="button" aria-label="Start new chat" title="Start new chat" onClick={createChatApi}>
               {/* Plus icon */}
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/>
@@ -160,75 +216,52 @@ export default function App() {
             </button>
           </div>
           <ul className="chat-list">
-            <li className="chat-item active">
-              Getting started
-              <div className="chat-actions" aria-hidden="true">
-                <button className="iconSquare edit" title="Edit chat name" aria-label="Edit chat name" type="button">
-                  {/* Pencil icon */}
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M3 17.25V21h3.75L19.81 7.94l-3.75-3.75L3 17.25z" stroke="currentColor" fill="none" strokeWidth="1.5"/>
-                    <path d="M14.06 4.19l3.75 3.75" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-                  </svg>
-                </button>
-                <button className="iconSquare star" title="Set chat as favourite" aria-label="Set chat as favourite" type="button">
-                  {/* Star icon (outlined) */}
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21 12 17.27z" stroke="currentColor" fill="none" strokeWidth="1.5"/>
-                  </svg>
-                </button>
-                <button className="iconSquare trash" title="Delete chat" aria-label="Delete chat" type="button">
-                  {/* Trash icon */}
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M3 6h18M9 6V4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-                    <path d="M10 11v6M14 11v6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-                  </svg>
-                </button>
-              </div>
-            </li>
-            <li className="chat-item">
-              Cacti care
-              <div className="chat-actions" aria-hidden="true">
-                <button className="iconSquare edit" title="Edit chat name" aria-label="Edit chat name" type="button">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M3 17.25V21h3.75L19.81 7.94l-3.75-3.75L3 17.25z" stroke="currentColor" fill="none" strokeWidth="1.5"/>
-                    <path d="M14.06 4.19l3.75 3.75" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-                  </svg>
-                </button>
-                <button className="iconSquare star" title="Set chat as favourite" aria-label="Set chat as favourite" type="button">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21 12 17.27z" stroke="currentColor" fill="none" strokeWidth="1.5"/>
-                  </svg>
-                </button>
-                <button className="iconSquare trash" title="Delete chat" aria-label="Delete chat" type="button">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M3 6h18M9 6V4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-                    <path d="M10 11v6M14 11v6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-                  </svg>
-                </button>
-              </div>
-            </li>
-            <li className="chat-item">
-              Bloom boosters
-              <div className="chat-actions" aria-hidden="true">
-                <button className="iconSquare edit" title="Edit chat name" aria-label="Edit chat name" type="button">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M3 17.25V21h3.75L19.81 7.94l-3.75-3.75L3 17.25z" stroke="currentColor" fill="none" strokeWidth="1.5"/>
-                    <path d="M14.06 4.19l3.75 3.75" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-                  </svg>
-                </button>
-                <button className="iconSquare star" title="Set chat as favourite" aria-label="Set chat as favourite" type="button">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21 12 17.27z" stroke="currentColor" fill="none" strokeWidth="1.5"/>
-                  </svg>
-                </button>
-                <button className="iconSquare trash" title="Delete chat" aria-label="Delete chat" type="button">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M3 6h18M9 6V4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-                    <path d="M10 11v6M14 11v6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-                  </svg>
-                </button>
-              </div>
-            </li>
+            {chats.map(chat => (
+              <li
+                key={chat.id}
+                className={`chat-item ${activeChatId === chat.id ? 'active' : ''}`}
+                onClick={() => setActiveChatId(chat.id)}
+              >
+                {editingChatId === chat.id ? (
+                  <input
+                    className="chat-edit"
+                    value={editingTitle}
+                    autoFocus
+                    onFocus={e => e.target.select()}
+                    onChange={e => setEditingTitle(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') commitRename(chat.id, editingTitle)
+                      if (e.key === 'Escape') setEditingChatId(null)
+                    }}
+                    onBlur={() => commitRename(chat.id, editingTitle)}
+                  />
+                ) : (
+                  <span className="chat-title">
+                    {chat.title}
+                    {chat.is_favourite && <span className="favMark" title="Favourite">⭐</span>}
+                  </span>
+                )}
+                <div className="chat-actions" onClick={e => e.stopPropagation()}>
+                  <button className="iconSquare edit" title="Edit chat name" aria-label="Edit chat name" type="button" onClick={() => renameChatApi(chat)}>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M3 17.25V21h3.75L19.81 7.94l-3.75-3.75L3 17.25z" stroke="currentColor" fill="none" strokeWidth="1.5"/>
+                      <path d="M14.06 4.19l3.75 3.75" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                    </svg>
+                  </button>
+                  <button className={`iconSquare star ${chat.is_favourite ? 'on' : ''}`} title="Set chat as favourite" aria-label="Set chat as favourite" type="button" onClick={() => toggleFavouriteApi(chat)}>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21 12 17.27z" stroke="currentColor" fill={chat.is_favourite ? 'currentColor' : 'none'} strokeWidth="1.5"/>
+                    </svg>
+                  </button>
+                  <button className="iconSquare trash" title="Delete chat" aria-label="Delete chat" type="button" onClick={() => confirmDelete(chat)}>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M3 6h18M9 6V4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                      <path d="M10 11v6M14 11v6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                    </svg>
+                  </button>
+                </div>
+              </li>
+            ))}
           </ul>
         </aside>
 
