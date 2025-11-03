@@ -144,7 +144,7 @@ export default function App() {
       <header className="header">
         <h1>
           <span className="leaf">🌿</span>
-          PlantMore Chat
+          PlantMoreAI
         </h1>
         <p className="sub">Your friendly guide to thriving houseplants</p>
       </header>

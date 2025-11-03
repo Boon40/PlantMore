@@ -1,6 +1,8 @@
 import 'dotenv/config'
 import express from 'express'
 import cors from 'cors'
+import { pool, dbHealth } from './db.js'
+import chatRouter from './modules/chat/chat.routes.js'
 
 const app = express()
 const PORT = process.env.PORT || 3001
@@ -12,13 +14,16 @@ app.get('/health', (_req, res) => {
   res.json({ status: 'ok' })
 })
 
-// Placeholder chat endpoint; wire to your model later
-app.post('/api/chat', async (req, res) => {
-  const { messages = [] } = req.body || {}
-  const last = messages[messages.length - 1]
-  const content = last?.content || 'Hello'
-  return res.json({ reply: `Echo: ${content}` })
+app.get('/health/db', async (_req, res) => {
+  try {
+    const ok = await dbHealth()
+    res.json({ db: ok ? 'up' : 'down' })
+  } catch (e) {
+    res.status(500).json({ db: 'down', error: e.message })
+  }
 })
+
+app.use('/api/chat', chatRouter)
 
 app.listen(PORT, () => {
   console.log(`API listening on http://localhost:${PORT}`)
