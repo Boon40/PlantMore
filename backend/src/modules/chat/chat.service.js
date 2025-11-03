@@ -17,8 +17,21 @@ export async function updateChatTitle(id, title) {
 }
 
 export async function deleteChat(id) {
-  const res = await pool.query('DELETE FROM chat WHERE id = $1 RETURNING id', [id])
-  return res.rows[0]
+  const client = await pool.connect()
+  try {
+    await client.query('BEGIN')
+    // delete images for messages in this chat, then messages, then chat
+    await client.query('DELETE FROM image WHERE message_id IN (SELECT id FROM message WHERE chat_id = $1)', [id])
+    await client.query('DELETE FROM message WHERE chat_id = $1', [id])
+    const res = await client.query('DELETE FROM chat WHERE id = $1 RETURNING id', [id])
+    await client.query('COMMIT')
+    return res.rows[0]
+  } catch (e) {
+    await client.query('ROLLBACK')
+    throw e
+  } finally {
+    client.release()
+  }
 }
 
 export async function setFavourite(id, fav) {

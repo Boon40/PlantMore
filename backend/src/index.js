@@ -3,6 +3,8 @@ import express from 'express'
 import cors from 'cors'
 import { pool, dbHealth } from './db.js'
 import chatRouter from './modules/chat/chat.routes.js'
+import messageRouter from './modules/message/message.routes.js'
+import imageRouter from './modules/image/image.routes.js'
 
 const app = express()
 const PORT = process.env.PORT || 3001
@@ -24,6 +26,8 @@ app.get('/health/db', async (_req, res) => {
 })
 
 app.use('/api/chat', chatRouter)
+app.use('/api/message', messageRouter)
+app.use('/api/image', imageRouter)
 
 app.listen(PORT, () => {
   console.log(`API listening on http://localhost:${PORT}`)
