@@ -3,14 +3,21 @@ import { pool } from '../../db.js'
 export async function createMessage(chatId, text) {
   const res = await pool.query(
     'INSERT INTO message (chat_id, text) VALUES ($1, $2) RETURNING id, chat_id, text, created_at',
-    [chatId, text]
+    [chatId, text && text.length ? text : null]
   )
   return res.rows[0]
 }
 
 export async function listMessagesByChat(chatId) {
   const res = await pool.query(
-    'SELECT id, chat_id, text, created_at FROM message WHERE chat_id = $1 ORDER BY created_at ASC, id ASC',
+    `SELECT m.id, m.chat_id, m.text, m.created_at,
+            COALESCE(json_agg(json_build_object('id', i.id, 'image_url', i.image_url) ORDER BY i.id)
+                     FILTER (WHERE i.id IS NOT NULL), '[]') AS images
+     FROM message m
+     LEFT JOIN image i ON i.message_id = m.id
+     WHERE m.chat_id = $1
+     GROUP BY m.id
+     ORDER BY m.created_at ASC, m.id ASC`,
     [chatId]
   )
   return res.rows

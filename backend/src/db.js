@@ -11,4 +11,13 @@ export async function dbHealth() {
   return res.rows[0]?.ok === 1
 }
 
+export async function ensureSchema() {
+  // Make message.text nullable (if created earlier as NOT NULL)
+  try {
+    await pool.query('ALTER TABLE message ALTER COLUMN text DROP NOT NULL')
+  } catch (e) {
+    // ignore if already nullable or table missing
+  }
+}
+
 

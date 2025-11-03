@@ -27,7 +27,7 @@ export default function App() {
       const res = await fetch(`${API_BASE}/message?chat_id=${chatId}`)
       if (res.ok) {
         const data = await res.json()
-        setMessages(data.map(r => ({ id: r.id, role: 'user', content: r.text, created_at: r.created_at })))
+        setMessages(data.map(r => ({ id: r.id, role: 'user', content: r.text || '', created_at: r.created_at, attachments: (r.images || []).map(img => ({ id: img.id, url: img.image_url })) })))
       }
     } catch {}
   }
@@ -199,7 +199,22 @@ export default function App() {
     const res = await fetch(`${API_BASE}/message`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ chat_id: activeChatId, text: trimmed }) })
     if (res.ok) {
       const saved = await res.json()
-      setMessages(prev => [...prev, { id: saved.id, role: 'user', content: saved.text, created_at: saved.created_at }])
+      let newMsg = { id: saved.id, role: 'user', content: saved.text || '', created_at: saved.created_at, attachments: [] }
+      // upload attachments sequentially
+      for (const att of attachments) {
+        try {
+          const blob = att.kind === 'dataurl' ? await (await fetch(att.url)).blob() : await (await fetch(att.url)).blob()
+          const fd = new FormData()
+          fd.append('message_id', String(saved.id))
+          fd.append('file', new File([blob], 'upload.jpg', { type: blob.type || 'image/jpeg' }))
+          const up = await fetch(`${API_BASE}/image/upload`, { method: 'POST', body: fd })
+          if (up.ok) {
+            const img = await up.json()
+            newMsg.attachments.push({ id: img.id, url: img.image_url })
+          }
+        } catch {}
+      }
+      setMessages(prev => [...prev, newMsg])
       setInput('')
       setAttachments([])
       setAttachError('')
