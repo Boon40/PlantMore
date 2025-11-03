@@ -21,6 +21,19 @@ export default function App() {
 
   useEffect(() => { loadChats() }, [])
 
+  async function loadMessages(chatId) {
+    if (!chatId) { setMessages([]); return }
+    try {
+      const res = await fetch(`${API_BASE}/message?chat_id=${chatId}`)
+      if (res.ok) {
+        const data = await res.json()
+        setMessages(data.map(r => ({ id: r.id, role: 'user', content: r.text, created_at: r.created_at })))
+      }
+    } catch {}
+  }
+
+  useEffect(() => { loadMessages(activeChatId) }, [activeChatId])
+
   async function createChatApi() {
     const res = await fetch(`${API_BASE}/chat`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: 'New chat' }) })
     if (res.ok) {
@@ -178,21 +191,19 @@ export default function App() {
     setAttachError('')
   }
 
-  function handleSend(e) {
+  async function handleSend(e) {
     e.preventDefault()
     const trimmed = input.trim()
     if (!trimmed && attachments.length === 0) return
-
-    const userMsg = { id: Date.now(), role: 'user', content: trimmed, attachments }
-    setMessages(prev => [...prev, userMsg])
-    setInput('')
-    // clear queued attachments (keep URLs alive for message rendering)
-    setAttachments([])
-    setAttachError('')
-
-    // Placeholder echo until backend is wired
-    const reply = null
-    setTimeout(() => setMessages(prev => [...prev, reply]), 400)
+    if (!activeChatId) return
+    const res = await fetch(`${API_BASE}/message`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ chat_id: activeChatId, text: trimmed }) })
+    if (res.ok) {
+      const saved = await res.json()
+      setMessages(prev => [...prev, { id: saved.id, role: 'user', content: saved.text, created_at: saved.created_at }])
+      setInput('')
+      setAttachments([])
+      setAttachError('')
+    }
   }
 
   return (
