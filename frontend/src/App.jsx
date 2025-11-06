@@ -4,6 +4,8 @@ export default function App() {
   const [messages, setMessages] = useState([])
   const [input, setInput] = useState('')
   const API_BASE = 'http://localhost:3001/api'
+  const API_ORIGIN = API_BASE.replace(/\/api\/?$/, '')
+  const absUrl = (u) => (u && u.startsWith('/') ? `${API_ORIGIN}${u}` : u)
   const [chats, setChats] = useState([])
   const [activeChatId, setActiveChatId] = useState(null)
   const [editingChatId, setEditingChatId] = useState(null)
@@ -27,7 +29,7 @@ export default function App() {
       const res = await fetch(`${API_BASE}/message?chat_id=${chatId}`)
       if (res.ok) {
         const data = await res.json()
-        setMessages(data.map(r => ({ id: r.id, role: 'user', content: r.text || '', created_at: r.created_at, attachments: (r.images || []).map(img => ({ id: img.id, url: img.image_url })) })))
+        setMessages(data.map(r => ({ id: r.id, role: 'user', content: r.text || '', created_at: r.created_at, attachments: (r.images || []).map(img => ({ id: img.id, url: absUrl(img.image_url) })) })))
       }
     } catch {}
   }
@@ -210,7 +212,7 @@ export default function App() {
           const up = await fetch(`${API_BASE}/image/upload`, { method: 'POST', body: fd })
           if (up.ok) {
             const img = await up.json()
-            newMsg.attachments.push({ id: img.id, url: img.image_url })
+            newMsg.attachments.push({ id: img.id, url: absUrl(img.image_url) })
           }
         } catch {}
       }

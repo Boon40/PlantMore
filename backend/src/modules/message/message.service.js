@@ -1,4 +1,6 @@
 import { pool } from '../../db.js'
+import fs from 'fs'
+import path from 'path'
 
 export async function createMessage(chatId, text) {
   const res = await pool.query(
@@ -27,6 +29,15 @@ export async function deleteMessage(id) {
   const client = await pool.connect()
   try {
     await client.query('BEGIN')
+    // Remove image files from disk
+    const imgs = await client.query('SELECT image_url FROM image WHERE message_id = $1', [id])
+    for (const row of imgs.rows) {
+      const url = row.image_url || ''
+      if (url.startsWith('/uploads/')) {
+        const filePath = path.resolve(process.cwd(), url.slice(1))
+        try { fs.unlinkSync(filePath) } catch {}
+      }
+    }
     await client.query('DELETE FROM image WHERE message_id = $1', [id])
     const res = await client.query('DELETE FROM message WHERE id = $1 RETURNING id', [id])
     await client.query('COMMIT')
