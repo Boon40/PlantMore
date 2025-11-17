@@ -9,6 +9,17 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 
+# Uploads folder
+uploads/
+/backend/uploads
+
+# Python virtual environment
+venv/
+bioclip_service/venv/
+env/
+ENV/
+.venv/
+
 # OS
 .DS_Store
 Thumbs.db
