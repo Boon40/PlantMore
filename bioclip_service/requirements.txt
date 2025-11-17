@@ -1,0 +1,19 @@
+# BioClip integration options (choose one or both)
+autodistill-bioclip>=0.1.0
+# Alternative: pybioclip>=0.1.0
+
+# Dependencies for autodistill-bioclip
+scikit-learn>=1.3.0  # Provides sklearn
+roboflow>=1.1.0
+autodistill>=0.1.0
+
+# Web framework
+flask>=3.0.0
+flask-cors>=4.0.0
+
+# Image processing
+Pillow>=10.0.0
+
+# Utilities
+requests>=2.31.0
+
