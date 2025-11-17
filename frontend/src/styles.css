@@ -44,7 +44,14 @@ body {
   display: grid;
   grid-template-columns: 30% 70%;
   gap: 16px;
-  padding: 16px 40px 16px 0; /* larger side paddings */
+  padding: 14px 40px 16px 16px; /* larger side paddings - increased top padding */
+  position: relative;
+  transition: grid-template-columns 0.3s ease, padding 0.3s ease;
+}
+.layout.sidebar-closed {
+  grid-template-columns: 0 100%;
+  padding-left: 60px; /* Space for the drawer button (48px + 12px gap) */
+  padding-right: 40px;
 }
 
 .sidebar {
@@ -54,6 +61,60 @@ body {
   overflow: hidden;
   display: grid;
   grid-template-rows: auto 1fr;
+  transition: transform 0.3s ease, opacity 0.3s ease, visibility 0.3s ease;
+  transform: translateX(0);
+  opacity: 1;
+  visibility: visible;
+}
+.sidebar.closed {
+  transform: translateX(calc(-100% - 16px));
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+.drawer-open-button {
+  position: fixed;
+  left: 0;
+  top: calc(74px + 24px); /* header height + increased padding - aligns with chat panel top */
+  width: 48px;
+  height: 80px;
+  border-radius: 0 12px 12px 0;
+  background: var(--primary);
+  color: #fff;
+  border: none;
+  border-right: 2px solid var(--primary-600);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  z-index: 100;
+  transition: background 0.2s ease, width 0.2s ease, box-shadow 0.2s ease;
+  animation: slideIn 0.3s ease;
+  box-shadow: 2px 0 8px rgba(0,0,0,0.1);
+  pointer-events: auto;
+}
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+.drawer-open-button:hover {
+  background: var(--primary-600);
+  width: 52px;
+  box-shadow: 3px 0 12px rgba(0,0,0,0.15);
+}
+.drawer-open-button:active {
+  transform: scale(0.98);
+  width: 48px;
+}
+.drawer-open-button svg {
+  display: block;
+  width: 24px;
+  height: 24px;
 }
 .sidebar-header { padding: 14px 16px; font-weight: 700; border-bottom: 1px solid color-mix(in oklab, var(--nav-bg) 60%, #0000); display: flex; align-items: center; justify-content: space-between; gap: 8px; background: var(--nav-bg); color: var(--nav-text); }
 .chat-list { list-style: none; padding: 8px; margin: 0; display: grid; gap: 6px; align-content: start; }
@@ -74,6 +135,7 @@ body {
 .iconSquare.trash:hover { background: #fecaca; /* red-200 */ border-color: #ef4444; }
 .iconSquare.edit:hover { background: #e5e7eb; /* gray-200 */ border-color: #9ca3af; }
 .iconSquare.plus:hover { background: #d1fae5; border-color: #10b981; box-shadow: 0 0 0 3px rgba(16,185,129,0.18); }
+.iconSquare.drawer-toggle:hover { background: var(--bg-accent); border-color: var(--primary); box-shadow: 0 0 0 3px rgba(46,125,50,0.18); }
 /* Star button visible state when favourited */
 .iconSquare.star.on { color: #facc15; border-color: #facc15; background: #fff6c2; }
 
@@ -88,6 +150,61 @@ body {
   grid-template-rows: 1fr auto auto; /* messages | attachments | composer */
   box-shadow: 0 6px 24px rgba(0,0,0,0.04);
   overflow: hidden;
+  position: relative;
+}
+.empty-state {
+  display: grid;
+  place-items: center;
+  padding: 60px 40px;
+  height: 100%;
+}
+.empty-state-content {
+  text-align: center;
+  max-width: 400px;
+}
+.empty-state-icon {
+  font-size: 64px;
+  margin-bottom: 20px;
+  opacity: 0.6;
+}
+.empty-state-content h2 {
+  margin: 0 0 12px;
+  font-size: 24px;
+  color: var(--text);
+  font-weight: 600;
+}
+.empty-state-content p {
+  margin: 0 0 24px;
+  color: var(--muted);
+  font-size: 15px;
+  line-height: 1.5;
+}
+.empty-state-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 24px;
+  background: var(--primary);
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 8px rgba(46,125,50,0.2);
+}
+.empty-state-button:hover {
+  background: var(--primary-600);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(46,125,50,0.3);
+}
+.empty-state-button:active {
+  transform: translateY(0);
+}
+.empty-state-button svg {
+  width: 18px;
+  height: 18px;
 }
 .messages { padding: 18px; overflow: auto; display: grid; gap: 12px; align-content: start; }
 .msgAttachments { display: grid; gap: 8px; margin: 6px 0 0 0; }

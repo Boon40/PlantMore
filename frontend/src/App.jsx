@@ -10,6 +10,7 @@ export default function App() {
   const [activeChatId, setActiveChatId] = useState(null)
   const [editingChatId, setEditingChatId] = useState(null)
   const [editingTitle, setEditingTitle] = useState('')
+  const [sidebarOpen, setSidebarOpen] = useState(true)
 
   async function loadChats() {
     const res = await fetch(`${API_BASE}/chat`)
@@ -18,7 +19,12 @@ export default function App() {
     // Ensure favourites first also on client
     const sorted = [...data].sort((a, b) => Number(b.is_favourite) - Number(a.is_favourite) || b.id - a.id)
     setChats(sorted)
-    if (data.length && !activeChatId) setActiveChatId(data[0].id)
+    if (data.length && !activeChatId) {
+      setActiveChatId(data[0].id)
+    } else if (data.length === 0) {
+      // Clear activeChatId when there are no chats
+      setActiveChatId(null)
+    }
   }
 
   useEffect(() => { loadChats() }, [])
@@ -69,10 +75,10 @@ export default function App() {
     const res = await fetch(`${API_BASE}/chat/${chatId}`, { method: 'DELETE' })
     if (res.ok) {
       await loadChats()
-      if (activeChatId === chatId) setActiveChatId(prev => {
+      if (activeChatId === chatId) {
         const remaining = chats.filter(c => c.id !== chatId)
-        return remaining[0]?.id ?? null
-      })
+        setActiveChatId(remaining.length > 0 ? remaining[0].id : null)
+      }
     }
   }
 
@@ -452,16 +458,29 @@ export default function App() {
         </h1>
         <p className="sub">Your friendly guide to thriving houseplants</p>
       </header>
-      <main className="layout">
-        <aside className="sidebar" aria-label="Conversations">
+      <main className={`layout ${!sidebarOpen ? 'sidebar-closed' : ''}`}>
+        <aside className={`sidebar ${sidebarOpen ? 'open' : 'closed'}`} aria-label="Conversations">
           <div className="sidebar-header">
             <span>Chats</span>
-            <button className="iconSquare plus" type="button" aria-label="Start new chat" title="Start new chat" onClick={createChatApi}>
-              {/* Plus icon */}
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/>
-              </svg>
-            </button>
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+              <button className="iconSquare plus" type="button" aria-label="Start new chat" title="Start new chat" onClick={createChatApi}>
+                {/* Plus icon */}
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/>
+                </svg>
+              </button>
+              <button 
+                className="iconSquare drawer-toggle" 
+                type="button" 
+                aria-label="Hide sidebar" 
+                title="Hide sidebar" 
+                onClick={() => setSidebarOpen(false)}
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M15 18l-6-6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              </button>
+            </div>
           </div>
           <ul className="chat-list">
             {chats.map(chat => (
@@ -513,7 +532,41 @@ export default function App() {
           </ul>
         </aside>
 
+        {!sidebarOpen && (
+          <button 
+            className="drawer-open-button" 
+            type="button" 
+            aria-label="Show sidebar" 
+            title="Show sidebar"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setSidebarOpen(true);
+            }}
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M9 18l6-6-6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          </button>
+        )}
+
         <section className="chatPanel" aria-label="Chat">
+          {!activeChatId ? (
+            <div className="empty-state">
+              <div className="empty-state-content">
+                <div className="empty-state-icon">🌿</div>
+                <h2>No chat selected</h2>
+                <p>Create a new chat to start identifying plants!</p>
+                <button className="empty-state-button" type="button" onClick={createChatApi}>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/>
+                  </svg>
+                  Create New Chat
+                </button>
+              </div>
+            </div>
+          ) : (
+            <>
           <div className="messages" ref={messagesRef}>
             {messages.map(m => {
               const count = m.attachments?.length || 0
@@ -708,6 +761,8 @@ export default function App() {
                 )}
               </div>
             </div>
+          )}
+            </>
           )}
         </section>
       </main>
