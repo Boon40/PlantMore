@@ -29,7 +29,21 @@ export default function App() {
       const res = await fetch(`${API_BASE}/message?chat_id=${chatId}`)
       if (res.ok) {
         const data = await res.json()
-        setMessages(data.map(r => ({ id: r.id, role: 'user', content: r.text || '', created_at: r.created_at, attachments: (r.images || []).map(img => ({ id: img.id, url: absUrl(img.image_url) })) })))
+        setMessages(data.map(r => {
+          // Determine role: messages with images are from user
+          // Assistant messages are those without images that start with classification indicators
+          const hasImages = r.images && r.images.length > 0
+          const text = r.text || ''
+          const isAssistant = !hasImages && (text.startsWith('🌿') || text.startsWith('🔍') || text.includes('identified this plant'))
+          const role = isAssistant ? 'assistant' : 'user'
+          return {
+            id: r.id,
+            role: role,
+            content: text,
+            created_at: r.created_at,
+            attachments: (r.images || []).map(img => ({ id: img.id, url: absUrl(img.image_url) }))
+          }
+        }))
       }
     } catch {}
   }
@@ -98,6 +112,10 @@ export default function App() {
   const [lightboxOpen, setLightboxOpen] = useState(false)
   const [lightboxImages, setLightboxImages] = useState([])
   const [lightboxIndex, setLightboxIndex] = useState(0)
+  const [autoClassify, setAutoClassify] = useState(true) // Enable auto-classification by default
+  const [classifyingImages, setClassifyingImages] = useState(new Set()) // Track images being classified
+  const [imageClassifications, setImageClassifications] = useState({}) // Store classifications by image ID
+  const [classifyingMessageIds, setClassifyingMessageIds] = useState(new Set()) // Track messages with images being classified
 
   function openLightbox(images, index) {
     setLightboxImages(images)
@@ -193,33 +211,235 @@ export default function App() {
     setAttachError('')
   }
 
+  async function classifyImage(imageId) {
+    if (classifyingImages.has(imageId)) return // Already classifying
+    
+    setClassifyingImages(prev => new Set(prev).add(imageId))
+    try {
+      const res = await fetch(`${API_BASE}/image/${imageId}/classify`, { method: 'POST' })
+      if (res.ok) {
+        const classification = await res.json()
+        if (classification.success) {
+          setImageClassifications(prev => ({
+            ...prev,
+            [imageId]: classification
+          }))
+        }
+      }
+    } catch (err) {
+      console.error('Classification failed:', err)
+    } finally {
+      setClassifyingImages(prev => {
+        const next = new Set(prev)
+        next.delete(imageId)
+        return next
+      })
+    }
+  }
+
   async function handleSend(e) {
     e.preventDefault()
     const trimmed = input.trim()
     if (!trimmed && attachments.length === 0) return
     if (!activeChatId) return
+    
+    // Store attachments locally before clearing
+    const attachmentsToUpload = [...attachments]
+    
     const res = await fetch(`${API_BASE}/message`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ chat_id: activeChatId, text: trimmed }) })
     if (res.ok) {
       const saved = await res.json()
       let newMsg = { id: saved.id, role: 'user', content: saved.text || '', created_at: saved.created_at, attachments: [] }
-      // upload attachments sequentially
-      for (const att of attachments) {
-        try {
-          const blob = att.kind === 'dataurl' ? await (await fetch(att.url)).blob() : await (await fetch(att.url)).blob()
-          const fd = new FormData()
-          fd.append('message_id', String(saved.id))
-          fd.append('file', new File([blob], 'upload.jpg', { type: blob.type || 'image/jpeg' }))
-          const up = await fetch(`${API_BASE}/image/upload`, { method: 'POST', body: fd })
-          if (up.ok) {
-            const img = await up.json()
-            newMsg.attachments.push({ id: img.id, url: absUrl(img.image_url) })
-          }
-        } catch {}
-      }
+      
+      // Add message to UI immediately (before uploads complete)
       setMessages(prev => [...prev, newMsg])
       setInput('')
       setAttachments([])
       setAttachError('')
+      
+      // Upload attachments in background and update message
+      if (attachmentsToUpload.length > 0) {
+        // Create a temporary "thinking" assistant message immediately if auto-classifying
+        const thinkingMsgId = autoClassify ? `thinking-${saved.id}-${Date.now()}` : null
+        if (autoClassify && thinkingMsgId) {
+          const thinkingMsg = {
+            id: thinkingMsgId,
+            role: 'assistant',
+            content: '⏳ Analyzing plant images...',
+            created_at: new Date().toISOString(),
+            attachments: [],
+            isThinking: true
+          }
+          setMessages(prev => [...prev, thinkingMsg])
+        }
+        
+        (async () => {
+          console.log('[Frontend] Starting upload of', attachmentsToUpload.length, 'images')
+          const uploadedAttachments = []
+          for (const att of attachmentsToUpload) {
+            try {
+              console.log('[Frontend] Uploading image:', att.id)
+              const blob = att.kind === 'dataurl' ? await (await fetch(att.url)).blob() : await (await fetch(att.url)).blob()
+              const fd = new FormData()
+              fd.append('message_id', String(saved.id))
+              fd.append('file', new File([blob], 'upload.jpg', { type: blob.type || 'image/jpeg' }))
+              if (autoClassify) {
+                fd.append('auto_classify', 'true')
+              }
+              console.log('[Frontend] Sending upload request to:', `${API_BASE}/image/upload`)
+              const up = await fetch(`${API_BASE}/image/upload`, { method: 'POST', body: fd })
+              if (up.ok) {
+                const img = await up.json()
+                console.log('[Frontend] Upload successful:', img)
+                uploadedAttachments.push({ id: img.id, url: absUrl(img.image_url) })
+                
+                // Update the message with the new attachment (merge with existing)
+                setMessages(prev => {
+                  const updated = prev.map(m => 
+                    m.id === saved.id 
+                      ? { ...m, attachments: [...(m.attachments || []), { id: img.id, url: absUrl(img.image_url) }] }
+                      : m
+                  )
+                  console.log('[Frontend] Updated messages with attachment:', updated.find(m => m.id === saved.id))
+                  return updated
+                })
+                
+                // Store classification if available (though it won't be, since it's async now)
+                if (img.classification && img.classification.success) {
+                  setImageClassifications(prev => ({
+                    ...prev,
+                    [img.id]: img.classification
+                  }))
+                }
+              } else {
+                const errorText = await up.text().catch(() => 'Unknown error')
+                console.error('[Frontend] Upload failed:', up.status, errorText)
+              }
+            } catch (err) {
+              console.error('[Frontend] Upload error:', err)
+            }
+          }
+          console.log('[Frontend] Finished uploading. Total uploaded:', uploadedAttachments.length)
+          
+          // Poll for assistant responses (classification results) after uploads complete
+          if (uploadedAttachments.length > 0 && autoClassify && thinkingMsgId) {
+            console.log('[Frontend] Starting to poll for assistant response...')
+            // Wait a bit for classification to start
+            await new Promise(resolve => setTimeout(resolve, 3000))
+            
+            // Poll for new messages (assistant response)
+            // Merge with existing messages instead of replacing
+            let attempts = 0
+            const maxAttempts = 25
+            const pollInterval = setInterval(async () => {
+              attempts++
+              console.log(`[Frontend] Polling attempt ${attempts}/${maxAttempts}`)
+              try {
+                const res = await fetch(`${API_BASE}/message?chat_id=${activeChatId}`)
+                if (res.ok) {
+                  const data = await res.json()
+                  console.log(`[Frontend] Received ${data.length} messages from server`)
+                  // Merge server messages with local state, preserving local attachments
+                  setMessages(prev => {
+                    const serverMessages = data.map(r => {
+                      const hasImages = r.images && r.images.length > 0
+                      const text = r.text || ''
+                      const isAssistant = !hasImages && (text.startsWith('🌿') || text.startsWith('🔍') || text.includes('identified this plant'))
+                      const role = isAssistant ? 'assistant' : 'user'
+                      return {
+                        id: r.id,
+                        role: role,
+                        content: text,
+                        created_at: r.created_at,
+                        attachments: (r.images || []).map(img => ({ id: img.id, url: absUrl(img.image_url) }))
+                      }
+                    })
+                    
+                    // Merge: use server data but preserve local message attachments and thinking messages
+                    const merged = serverMessages.map(serverMsg => {
+                      const localMsg = prev.find(m => m.id === serverMsg.id)
+                      if (localMsg) {
+                        // Merge attachments: use server attachments (they're authoritative) but keep any local-only ones
+                        const serverAttachments = serverMsg.attachments || []
+                        const localAttachments = localMsg.attachments || []
+                        // Combine and deduplicate by id
+                        const allAttachments = [...serverAttachments, ...localAttachments]
+                        const uniqueAttachments = Array.from(
+                          new Map(allAttachments.map(att => [att.id, att])).values()
+                        )
+                        return { ...serverMsg, attachments: uniqueAttachments }
+                      }
+                      return serverMsg
+                    })
+                    
+                    // Add any local messages not in server (thinking messages, etc.)
+                    const localOnly = prev.filter(local => {
+                      // Keep thinking messages and messages not yet on server
+                      return local.isThinking || !serverMessages.find(s => s.id === local.id)
+                    })
+                    
+                    const combined = [...merged, ...localOnly]
+                    // Sort by created_at, then by id
+                    return combined.sort((a, b) => {
+                      const aTime = new Date(a.created_at || 0).getTime()
+                      const bTime = new Date(b.created_at || 0).getTime()
+                      if (aTime !== bTime) {
+                        return aTime - bTime
+                      }
+                      // For same timestamp, put thinking messages after
+                      if (a.isThinking && !b.isThinking) return 1
+                      if (!a.isThinking && b.isThinking) return -1
+                      return (a.id || 0) - (b.id || 0)
+                    })
+                  })
+                  
+                  // Check if we got an assistant message
+                  const assistantMsg = data.find(r => {
+                    const hasImages = r.images && r.images.length > 0
+                    const text = r.text || ''
+                    return !hasImages && (text.startsWith('🌿') || text.startsWith('🔍') || text.includes('identified this plant'))
+                  })
+                  
+                  if (assistantMsg || attempts >= maxAttempts) {
+                    clearInterval(pollInterval)
+                    // Remove thinking message and replace with actual response
+                    setMessages(prev => {
+                    // Remove thinking message
+                    const withoutThinking = prev.filter(m => !m.isThinking || m.id !== thinkingMsgId)
+                      // If we got an assistant message, add it
+                      if (assistantMsg) {
+                        const hasImages = assistantMsg.images && assistantMsg.images.length > 0
+                        const text = assistantMsg.text || ''
+                        const isAssistant = !hasImages && (text.startsWith('🌿') || text.startsWith('🔍') || text.includes('identified this plant'))
+                        if (isAssistant) {
+                          const newAssistantMsg = {
+                            id: assistantMsg.id,
+                            role: 'assistant',
+                            content: text,
+                            created_at: assistantMsg.created_at,
+                            attachments: []
+                          }
+                          return [...withoutThinking, newAssistantMsg]
+                        }
+                      }
+                      return withoutThinking
+                    })
+                  }
+                }
+              } catch (err) {
+                console.error('Poll error:', err)
+              }
+              
+              if (attempts >= maxAttempts) {
+                clearInterval(pollInterval)
+              }
+            }, 2000) // Check every 2 seconds
+            
+            // Stop polling after 50 seconds max
+            setTimeout(() => clearInterval(pollInterval), 50000)
+          }
+        })()
+      }
     }
   }
 
@@ -303,22 +523,62 @@ export default function App() {
                 <div key={m.id} className={`message ${m.role}`}>
                   {count > 0 && (
                     <div className={`msgAttachments c${Math.min(count,4)}`}>
-                      {firstFour.map((att, idx) => (
-                        <div key={att.id} className="tile">
-                          <img
-                            src={att.url}
-                            alt="Attachment"
-                            onClick={() => openLightbox(m.attachments, idx)}
-                            role="button"
-                          />
-                          {extra > 0 && idx === firstFour.length - 1 && (
-                            <div className="moreOverlay">+{extra}</div>
-                          )}
-                        </div>
-                      ))}
+                      {firstFour.map((att, idx) => {
+                        const classification = imageClassifications[att.id]
+                        const isClassifying = classifyingImages.has(att.id)
+                        return (
+                          <div key={att.id} className="tile">
+                            <img
+                              src={att.url}
+                              alt="Attachment"
+                              onClick={() => openLightbox(m.attachments, idx)}
+                              role="button"
+                            />
+                            {extra > 0 && idx === firstFour.length - 1 && (
+                              <div className="moreOverlay">+{extra}</div>
+                            )}
+                            {classification && classification.success && (
+                              <div className="classification-badge" title={`${classification.prediction} (${(classification.confidence * 100).toFixed(0)}%)`}>
+                                🌿 {classification.prediction}
+                              </div>
+                            )}
+                            {!classification && !isClassifying && (
+                              <button
+                                className="classify-btn"
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  classifyImage(att.id)
+                                }}
+                                title="Identify plant"
+                              >
+                                🔍
+                              </button>
+                            )}
+                          </div>
+                        )
+                      })}
                     </div>
                   )}
-                  {m.content && <div className="bubble">{m.content}</div>}
+                  {m.content && (
+                    <div className="bubble">
+                      {m.role === 'assistant' ? (
+                        m.isThinking ? (
+                          <div style={{ whiteSpace: 'pre-wrap', color: 'var(--muted)', fontStyle: 'italic' }}>
+                            <span className="spinner">⏳</span> {m.content.replace('⏳ ', '')}
+                          </div>
+                        ) : (
+                          <div style={{ whiteSpace: 'pre-wrap' }}>
+                            {typeof m.content === 'string' ? m.content.split('**').map((part, i) => 
+                              i % 2 === 1 ? <strong key={i}>{part}</strong> : part
+                            ) : m.content}
+                          </div>
+                        )
+                      ) : (
+                        m.content
+                      )}
+                    </div>
+                  )}
                 </div>
               )
             })}

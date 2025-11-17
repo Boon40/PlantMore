@@ -3,7 +3,10 @@ import multer from 'multer'
 import path from 'path'
 import { fileURLToPath } from 'url'
 import fs from 'fs'
-import { createImage, listImagesByMessage, deleteImage } from './image.service.js'
+import { createImage, listImagesByMessage, deleteImage, getImageById } from './image.service.js'
+import { classifyImage, checkBioClipHealth } from './bioclip.service.js'
+import { createMessage } from '../message/message.service.js'
+import { pool } from '../../db.js'
 
 const router = Router()
 
@@ -67,9 +70,115 @@ router.post('/upload', upload.single('file'), async (req, res) => {
     if (!req.file) return res.status(400).json({ error: 'file is required' })
     const publicUrl = `/uploads/${req.file.filename}`
     const row = await createImage(messageId, publicUrl)
+    
+    // Get chat_id from the message to create assistant response
+    const msgRes = await pool.query('SELECT chat_id FROM message WHERE id = $1', [messageId])
+    const chatId = msgRes.rows[0]?.chat_id
+    
+    // Optionally classify the image if auto_classify is enabled
+    // Do this ASYNCHRONOUSLY so the upload response returns immediately
+    const autoClassify = req.body.auto_classify === 'true' || req.body.auto_classify === true
+    if (autoClassify && chatId) {
+      // Don't await - let it run in the background
+      const absolutePath = req.file.path
+      console.log(`[BioClip] Queuing classification for: ${absolutePath}`)
+      console.log(`[BioClip] Chat ID: ${chatId}, Message ID: ${messageId}`)
+      
+      // Run classification asynchronously without blocking the response
+      // Use setImmediate with proper async handling
+      setImmediate(() => {
+        (async () => {
+          try {
+            console.log(`[BioClip] Starting classification for: ${absolutePath}`)
+            const classification = await classifyImage(absolutePath)
+            console.log(`[BioClip] Classification result:`, JSON.stringify(classification, null, 2))
+            
+            // Create assistant message with classification result
+            if (classification.success) {
+              const confidencePercent = (classification.confidence * 100).toFixed(0)
+              let responseText = `🌿 I've identified this plant as **${classification.prediction}** (${confidencePercent}% confidence).\n\n`
+              
+              // Add top 3 alternatives if available
+              if (classification.top_k && classification.top_k.length > 1) {
+                responseText += 'Other possibilities:\n'
+                classification.top_k.slice(1, 4).forEach((alt, idx) => {
+                  const altConf = (alt.confidence * 100).toFixed(0)
+                  responseText += `• ${alt.plant} (${altConf}%)\n`
+                })
+              }
+              
+              // Create assistant message
+              console.log(`[BioClip] Creating assistant message for chat ${chatId}`)
+              const assistantMsg = await createMessage(chatId, responseText)
+              console.log(`[BioClip] Assistant message created:`, assistantMsg.id)
+            } else {
+              // Classification failed - log the error and create a helpful message
+              console.error(`[BioClip] Classification failed:`, classification.error)
+              const errorMsg = classification.error || 'Unknown error'
+              // Don't show technical errors to users, just a friendly message
+              console.log(`[BioClip] Creating error message for chat ${chatId}`)
+              await createMessage(chatId, "🔍 I'm having trouble identifying this plant. Could you provide more details or try a clearer photo?")
+            }
+          } catch (classifyError) {
+            // Don't fail the upload if classification fails
+            console.error('[BioClip] Classification exception:', classifyError)
+            console.error('[BioClip] Stack:', classifyError.stack)
+            
+            // Still create a helpful assistant message
+            if (chatId) {
+              console.log(`[BioClip] Creating error fallback message for chat ${chatId}`)
+              await createMessage(chatId, "🔍 I'm having trouble identifying this plant right now. Please try again in a moment.")
+            }
+          }
+        })().catch(err => {
+          console.error('[BioClip] Unhandled error in classification:', err)
+        })
+      })
+    }
+    
+    // Return immediately without waiting for classification
     res.status(201).json(row)
   } catch (e) {
     res.status(500).json({ error: e.message })
+  }
+})
+
+// Classify an uploaded image by ID
+router.post('/:id/classify', async (req, res) => {
+  try {
+    const id = Number(req.params.id)
+    if (!Number.isInteger(id)) return res.status(400).json({ error: 'invalid id' })
+    
+    // Get image from database
+    const image = await getImageById(id)
+    if (!image) {
+      return res.status(404).json({ error: 'Image not found' })
+    }
+    
+    // Convert relative URL to absolute path
+    const imageUrl = image.image_url
+    const absolutePath = imageUrl.startsWith('/uploads/')
+      ? path.resolve(uploadsRoot, imageUrl.replace('/uploads/', ''))
+      : path.resolve(uploadsRoot, path.basename(imageUrl))
+    
+    if (!fs.existsSync(absolutePath)) {
+      return res.status(404).json({ error: 'Image file not found on disk' })
+    }
+    
+    const classification = await classifyImage(absolutePath)
+    res.json(classification)
+  } catch (e) {
+    res.status(500).json({ error: e.message })
+  }
+})
+
+// Health check for BioClip service
+router.get('/bioclip/health', async (req, res) => {
+  try {
+    const health = await checkBioClipHealth()
+    res.json(health)
+  } catch (e) {
+    res.status(500).json({ available: false, error: e.message })
   }
 })
 

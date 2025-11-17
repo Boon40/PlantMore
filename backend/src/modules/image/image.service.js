@@ -21,4 +21,12 @@ export async function deleteImage(id) {
   return res.rows[0]
 }
 
+export async function getImageById(id) {
+  const res = await pool.query(
+    'SELECT id, message_id, image_url FROM image WHERE id = $1',
+    [id]
+  )
+  return res.rows[0] || null
+}
+
 

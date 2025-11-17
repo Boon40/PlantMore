@@ -103,6 +103,81 @@ body {
 .msgAttachments .tile { position: relative; overflow: hidden; border-radius: 10px; border: 1px solid var(--assistant-border); background: #fff; }
 .msgAttachments .tile img { width: 100%; object-fit: cover; display: block; cursor: zoom-in; }
 .moreOverlay { position: absolute; inset: 0; background: rgba(0,0,0,0.45); color: #fff; display: grid; place-items: center; font-weight: 700; font-size: 24px; }
+.classification-badge {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: linear-gradient(to top, rgba(0,0,0,0.75), rgba(0,0,0,0.4), transparent);
+  color: #fff;
+  padding: 8px 10px 6px;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: center;
+  backdrop-filter: blur(4px);
+  border-radius: 0 0 10px 10px;
+}
+.classifying-badge {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: linear-gradient(to top, rgba(46,125,50,0.85), rgba(46,125,50,0.5), transparent);
+  color: #fff;
+  padding: 8px 10px 6px;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: center;
+  backdrop-filter: blur(4px);
+  border-radius: 0 0 10px 10px;
+}
+.classify-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: 1px solid rgba(255,255,255,0.3);
+  background: rgba(46,125,50,0.9);
+  color: #fff;
+  font-size: 16px;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  backdrop-filter: blur(4px);
+  transition: all 0.2s ease;
+}
+.classify-btn:hover {
+  background: rgba(46,125,50,1);
+  transform: scale(1.1);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+}
+.classifying-message-indicator {
+  margin-top: 8px;
+  padding: 8px 12px;
+  background: rgba(46,125,50,0.1);
+  border: 1px solid rgba(46,125,50,0.3);
+  border-radius: 8px;
+  color: var(--primary);
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.classifying-message-indicator .spinner {
+  display: inline-block;
+  animation: spin 1s linear infinite;
+}
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+.classifying-badge .spinner {
+  display: inline-block;
+  animation: spin 1s linear infinite;
+  margin-right: 4px;
+}
 .attachments { padding: 0 18px 10px 18px; display: flex; flex-wrap: nowrap; gap: 10px; overflow: auto; }
 .attachment { position: relative; width: 110px; aspect-ratio: 1 / 1; flex: 0 0 110px; border: 1px solid var(--assistant-border); border-radius: 10px; overflow: hidden; background: #fff; }
 .attachment img { width: 100%; height: 100%; object-fit: cover; display: block; }
@@ -124,6 +199,14 @@ body {
 .message.user .bubble {
   background: var(--user);
   border-color: var(--user-border);
+}
+.message.assistant .bubble {
+  position: relative;
+}
+.message.assistant .bubble .spinner {
+  display: inline-block;
+  animation: spin 1s linear infinite;
+  margin-right: 6px;
 }
 
 .composer {
