@@ -324,6 +324,8 @@ export default function App() {
           // Poll for assistant responses (classification results) after uploads complete
           if (uploadedAttachments.length > 0 && autoClassify && thinkingMsgId) {
             console.log('[Frontend] Starting to poll for assistant response...')
+            // Track which assistant messages we've already seen for this classification
+            const seenAssistantIds = new Set()
             // Wait a bit for classification to start
             await new Promise(resolve => setTimeout(resolve, 3000))
             
@@ -379,8 +381,12 @@ export default function App() {
                     })
                     
                     const combined = [...merged, ...localOnly]
+                    // Deduplicate messages by ID (in case of duplicates)
+                    const uniqueMessages = Array.from(
+                      new Map(combined.map(msg => [msg.id, msg])).values()
+                    )
                     // Sort by created_at, then by id
-                    return combined.sort((a, b) => {
+                    return uniqueMessages.sort((a, b) => {
                       const aTime = new Date(a.created_at || 0).getTime()
                       const bTime = new Date(b.created_at || 0).getTime()
                       if (aTime !== bTime) {
@@ -393,36 +399,30 @@ export default function App() {
                     })
                   })
                   
-                  // Check if we got an assistant message
+                  // Check if we got a NEW assistant message (one we haven't seen before for this classification)
                   const assistantMsg = data.find(r => {
                     const hasImages = r.images && r.images.length > 0
                     const text = r.text || ''
-                    return !hasImages && (text.startsWith('🌿') || text.startsWith('🔍') || text.includes('identified this plant'))
+                    const isAssistant = !hasImages && (text.startsWith('🌿') || text.startsWith('🔍') || text.includes('identified this plant'))
+                    // Only consider it new if we haven't seen this message ID before
+                    return isAssistant && !seenAssistantIds.has(r.id)
                   })
                   
-                  if (assistantMsg || attempts >= maxAttempts) {
+                  // If we found a NEW assistant message, stop polling and just remove thinking message
+                  // The assistant message is already in the merged messages above
+                  if (assistantMsg) {
+                    seenAssistantIds.add(assistantMsg.id)
                     clearInterval(pollInterval)
-                    // Remove thinking message and replace with actual response
+                    // Just remove the thinking message - assistant message is already in the merged state
                     setMessages(prev => {
+                      return prev.filter(m => !m.isThinking || m.id !== thinkingMsgId)
+                    })
+                  } else if (attempts >= maxAttempts) {
+                    // Max attempts reached, stop polling
+                    clearInterval(pollInterval)
                     // Remove thinking message
-                    const withoutThinking = prev.filter(m => !m.isThinking || m.id !== thinkingMsgId)
-                      // If we got an assistant message, add it
-                      if (assistantMsg) {
-                        const hasImages = assistantMsg.images && assistantMsg.images.length > 0
-                        const text = assistantMsg.text || ''
-                        const isAssistant = !hasImages && (text.startsWith('🌿') || text.startsWith('🔍') || text.includes('identified this plant'))
-                        if (isAssistant) {
-                          const newAssistantMsg = {
-                            id: assistantMsg.id,
-                            role: 'assistant',
-                            content: text,
-                            created_at: assistantMsg.created_at,
-                            attachments: []
-                          }
-                          return [...withoutThinking, newAssistantMsg]
-                        }
-                      }
-                      return withoutThinking
+                    setMessages(prev => {
+                      return prev.filter(m => !m.isThinking || m.id !== thinkingMsgId)
                     })
                   }
                 }
